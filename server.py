@@ -141,14 +141,14 @@ class TftpSession(Thread):
         finish = False
         while not finish:
             for i in range(self.windowsize):
-                readable, writable, exceptional = select.select([self.s], [], [], 0)
-                if self.s in readable:      # 窗口未发送完收到数据，有丢包
-                    break
                 data = f.read(self.blksize)
                 send_block = (ack_block + i + 1) & 0xffff   # uint_16
                 self.send(DATA, block=send_block, data=data)
                 if len(data) < self.blksize:
                     finish = True
+                    break
+                readable, writable, exceptional = select.select([self.s], [], [], 0)
+                if self.s in readable:      # 窗口未发送完收到数据，有丢包
                     break
             try:
                 ack_block = self.recv()
