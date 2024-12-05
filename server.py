@@ -164,6 +164,9 @@ class TftpSession(Thread):
 
             if ack_block != send_block:
                 offset = ((send_block - ack_block) & 0xffff) * self.blksize
+                # ack序号大于发送序号，忽略掉
+                if (send_block - ack_block) & 0xffff > 0x8888:
+                    continue
                 if finish:
                     finish = False
                     offset = offset - self.blksize + len(data)      # 最后一个窗口有丢包时，纠正offset
