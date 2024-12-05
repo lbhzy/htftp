@@ -94,11 +94,13 @@ class TftpClient:
         file_path = os.path.join(self.tftp_dir, local_file)
         f = open(file_path, 'wb')
         last_block = 0
+        nack_block = -1
         retry = 0
         finish = False
         while not finish:
             i = 0
             while i < self.windowsize:  # 开始为1，若请求有windowsize，在第一次recv后，此值会更新
+                i += 1
                 try:
                     cur_block, data = self.recv()
                     retry = 0
@@ -110,15 +112,21 @@ class TftpClient:
                     retry += 1
                     break
                 if cur_block != (last_block + 1) & 0xffff:
-                    cur_block = last_block
+                    print(f'recv:{cur_block} exp:{last_block+1}')
+                    # 接收块序号小于已经接收的块，忽略掉
+                    if (cur_block - last_block) & 0xffff > 0x8888:
+                        continue
+                    # 相同nack只发送一次
+                    if nack_block != last_block:
+                        cur_block = nack_block = last_block
                     break
+                last_block = cur_block
                 f.write(data)
                 if len(data) < self.blksize:
                     finish = True
                     break
-                i += 1
-                last_block = cur_block
-            self.send(ACK, block=cur_block)
+            if cur_block == last_block:
+                self.send(ACK, block=cur_block)
 
 
 if __name__ == '__main__':
