@@ -140,16 +140,19 @@ class TftpSession(Thread):
         retry = 0
         finish = False
         while not finish:
-            for i in range(self.windowsize):
+            send_block = ack_block
+            for _ in range(self.windowsize):
+                readable, _, _ = select.select([self.s], [], [], 0)
+                if self.s in readable:      # 窗口未发送完收到数据
+                    break
                 data = f.read(self.blksize)
-                send_block = (ack_block + i + 1) & 0xffff   # uint_16
+                size = len(data)
+                send_block = (send_block + 1) & 0xffff   # uint_16
                 self.send(DATA, block=send_block, data=data)
-                if len(data) < self.blksize:
+                if size < self.blksize:
                     finish = True
                     break
-                readable, writable, exceptional = select.select([self.s], [], [], 0)
-                if self.s in readable:      # 窗口未发送完收到数据，有丢包
-                    break
+
             try:
                 ack_block = self.recv()
                 retry = 0
@@ -163,13 +166,11 @@ class TftpSession(Thread):
                 log.error(f'块：{send_block}，ACK超时{retry}次，超时时间：{self.s.gettimeout()}s')
 
             if ack_block != send_block:
-                offset = ((send_block - ack_block) & 0xffff) * self.blksize
                 # ack序号大于发送序号，忽略掉
                 if (send_block - ack_block) & 0xffff > 0x8888:
                     continue
-                if finish:
-                    finish = False
-                    offset = offset - self.blksize + len(data)      # 最后一个窗口有丢包时，纠正offset
+                finish = False
+                offset = ((send_block - ack_block - 1) & 0xffff) * self.blksize + size
                 f.seek(-offset, os.SEEK_CUR)
                 log.error(f'重传块：{(ack_block + 1) & 0xffff}')
 
