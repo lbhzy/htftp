@@ -10,6 +10,7 @@ from const import *
 logging.basicConfig(level = logging.DEBUG, format='%(asctime)s - %(message)s')
 log = logging.getLogger(__name__)
 
+GBN_ENABLE = True   # 回退N帧协议 可在接收方窗口为1时，大幅提高信道利用率
 
 class TftpSession(Thread):
     """ TFTP 会话 """
@@ -136,12 +137,22 @@ class TftpSession(Thread):
     def transfer(self, file_path):
         """ 传输过程 """
         f = open(file_path, 'rb')
+        global GBN_ENABLE
+        if GBN_ENABLE and self.windowsize == 1:
+            self.windowsize = 8
+            last_ack_block = 0
+            send_end = False
+        else:
+            GBN_ENABLE = False
         ack_block = 0
         retry = 0
         finish = False
         while not finish:
             send_block = ack_block
             for _ in range(self.windowsize):
+                if GBN_ENABLE and send_end:
+                    finish = True
+                    break
                 readable, _, _ = select.select([self.s], [], [], 0)
                 if self.s in readable:      # 窗口未发送完收到数据
                     break
@@ -156,6 +167,17 @@ class TftpSession(Thread):
             try:
                 ack_block = self.recv()
                 retry = 0
+                if GBN_ENABLE:
+                    if ack_block == (last_ack_block + 1) & 0xffff:
+                        last_ack_block = ack_block
+                        if finish and ack_block != send_block:
+                            finish = False
+                            send_end = True
+                        ack_block = send_block
+                        continue
+                    else:
+                        send_end = False
+                        ack_block = last_ack_block
             except TimeoutError as e:
                 if retry == MAX_RETRY:
                     errmsg=f'传输失败，超过最大重传次数{MAX_RETRY}'
