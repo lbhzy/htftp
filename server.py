@@ -168,7 +168,8 @@ class TftpSession(Thread):
                 ack_block = self.recv()
                 retry = 0
                 if GBN_ENABLE:
-                    if ack_block == (last_ack_block + 1) & 0xffff:
+                    # ack块序号大于上次ack序号
+                    if (ack_block - last_ack_block) & 0xffff > 0:
                         last_ack_block = ack_block
                         if finish and ack_block != send_block:
                             finish = False
@@ -179,6 +180,8 @@ class TftpSession(Thread):
                         send_end = False
                         ack_block = last_ack_block
             except TimeoutError as e:
+                if GBN_ENABLE:
+                    ack_block = last_ack_block
                 if retry == MAX_RETRY:
                     errmsg=f'传输失败，超过最大重传次数{MAX_RETRY}'
                     self.send(ERROR, errcode=0, errmsg=errmsg)
@@ -189,7 +192,7 @@ class TftpSession(Thread):
 
             if ack_block != send_block:
                 # ack序号大于发送序号，忽略掉
-                if (send_block - ack_block) & 0xffff > 0x8888:
+                if (ack_block - send_block) & 0xffff > 0:
                     continue
                 finish = False
                 offset = ((send_block - ack_block - 1) & 0xffff) * self.blksize + size
