@@ -114,7 +114,7 @@ class TftpClient:
                 if cur_block != (last_block + 1) & 0xffff:
                     print(f'recv:{cur_block} exp:{last_block+1}')
                     # 接收块序号小于已经接收的块，忽略掉
-                    if (cur_block - last_block) & 0xffff > 0x8888:
+                    if (last_block - cur_block) & 0xffff > 0:
                         continue
                     # 相同nack只发送一次
                     if nack_block != last_block:
@@ -132,7 +132,7 @@ class TftpClient:
 if __name__ == '__main__':
     client = TftpClient('127.0.0.1')
     t0 = time.time()
-    client.download('10m', 'down', blksize=65535, windowsize=65535, tsize=0)
+    client.download('10m', 'down', blksize=65535, windowsize=1, tsize=0)
     cost = time.time() - t0
     print(f'下载完成，耗时：{cost:.3f}s')
     # client.download('uboot.bin', blksize=MAX_BLOCK_SIZE, windowsize=65535)
