@@ -177,6 +177,7 @@ class TftpSession(Thread):
                         ack_block = send_block
                         continue
                     else:
+                        finish = False
                         send_end = False
                         ack_block = last_ack_block
             except TimeoutError as e:
